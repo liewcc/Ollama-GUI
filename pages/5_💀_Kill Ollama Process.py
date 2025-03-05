@@ -1,6 +1,7 @@
 import subprocess
 import pandas as pd
 import streamlit as st
+import time
 
 # Function to run the tasklist command
 def get_tasklist_info():
@@ -32,14 +33,21 @@ def kill_process(pids):
     for pid in pids:
         subprocess.run(["taskkill", "/PID", str(pid), "/F"], shell=True)
 
+# Function to kill all tasks and ensure they are terminated
+def kill_all_tasks(df):
+    while not df.empty:
+        pids = df["PID"].tolist()
+        kill_process(pids)
+        time.sleep(2)  # Wait before checking again
+        tasklist_info = get_tasklist_info()
+        df = create_dataframe(tasklist_info) if tasklist_info else pd.DataFrame()
+
 # Streamlit app
-# Get the tasklist info and create a DataFrame
 tasklist_info = get_tasklist_info()
 df = create_dataframe(tasklist_info) if tasklist_info else pd.DataFrame()
 
 if not df.empty:
     st.write('### Process Information')
-    # Convert DataFrame to string with fixed-width formatting and added spaces between columns
     header = "{:<20}  {:<8}  {:<15}  {:<10}  {:<12}".format("Image Name", "PID", "Session Name", "Session#", "Mem Usage")
     table_string = "\n".join([header] + [("{:<20}  {:<8}  {:<15}  {:<10}  {:<12}".format(*row)) for row in df.values])
     st.code(table_string, language="text")
@@ -52,11 +60,15 @@ if not df.empty:
         if checkbox:
             selected_pids.append(row['PID'])
     
-    if st.button("Kill Process"):
+    if st.button("Kill Selected Process"):
         if selected_pids:
             kill_process(selected_pids)
             st.rerun()  # Reload the page to update process list
         else:
             st.warning("No process selected.")
+    
+    if st.button("Kill All Processes"):
+        kill_all_tasks(df)
+        st.rerun()
 else:
     st.error('No "ollama" or "ollama app" processes found.')
